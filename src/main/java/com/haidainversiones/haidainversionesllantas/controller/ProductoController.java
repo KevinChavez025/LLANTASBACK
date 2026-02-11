@@ -25,6 +25,67 @@ public class ProductoController {
         return productoService.obtenerTodos();
     }
 
+    // Obtener producto por ID
+    @GetMapping("/{id}")
+    public ResponseEntity<Producto> getProductoById(@PathVariable Long id) {
+        return productoService.obtenerPorId(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // Buscar productos
+    @GetMapping("/buscar")
+    public ResponseEntity<List<Producto>> buscarProductos(@RequestParam String query) {
+        List<Producto> productos = productoService.obtenerTodos().stream()
+                .filter(p -> p.getNombre().toLowerCase().contains(query.toLowerCase()) ||
+                        (p.getDescripcion() != null && p.getDescripcion().toLowerCase().contains(query.toLowerCase())) ||
+                        (p.getMarca() != null && p.getMarca().toLowerCase().contains(query.toLowerCase())))
+                .toList();
+        return ResponseEntity.ok(productos);
+    }
+
+    // Obtener por marca
+    @GetMapping("/marca/{marca}")
+    public ResponseEntity<List<Producto>> getByMarca(@PathVariable String marca) {
+        List<Producto> productos = productoService.obtenerPorMarca(marca);
+        return ResponseEntity.ok(productos);
+    }
+
+    // Obtener por tipo de vehículo
+    @GetMapping("/tipo-vehiculo/{tipo}")
+    public ResponseEntity<List<Producto>> getByTipoVehiculo(@PathVariable String tipo) {
+        List<Producto> productos = productoService.obtenerPorTipoVehiculo(tipo);
+        return ResponseEntity.ok(productos);
+    }
+
+    // Obtener por medida
+    @GetMapping("/medida/{medida}")
+    public ResponseEntity<List<Producto>> getByMedida(@PathVariable String medida) {
+        List<Producto> productos = productoService.obtenerPorMedida(medida);
+        return ResponseEntity.ok(productos);
+    }
+
+    // Obtener productos destacados
+    @GetMapping("/destacados")
+    public ResponseEntity<List<Producto>> getDestacados() {
+        List<Producto> productos = productoService.obtenerDestacados();
+        return ResponseEntity.ok(productos);
+    }
+
+    // Obtener productos nuevos
+    @GetMapping("/nuevos")
+    public ResponseEntity<List<Producto>> getNuevos() {
+        List<Producto> productos = productoService.obtenerNuevos();
+        return ResponseEntity.ok(productos);
+    }
+
+    // Obtener productos disponibles
+    @GetMapping("/disponibles")
+    public ResponseEntity<List<Producto>> getDisponibles() {
+        List<Producto> productos = productoService.obtenerDisponibles();
+        return ResponseEntity.ok(productos);
+    }
+
     @PutMapping("/{id}")
     public ResponseEntity<Producto> updateProducto(@PathVariable Long id, @RequestBody Producto productoDetails) {
         return productoService.getProductoById(id)

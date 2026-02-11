@@ -58,6 +58,7 @@ public class ProductoService {
         producto.setId(id);
         return productoRepository.save(producto);
     }
+
     public Optional<Producto> getProductoById(Long id) {
         return productoRepository.findById(id);
     }
@@ -65,5 +66,6 @@ public class ProductoService {
     public void deleteProducto(Long id) {
         productoRepository.deleteById(id);
     }
-
 }
+
+
