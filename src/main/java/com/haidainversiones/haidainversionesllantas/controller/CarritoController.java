@@ -2,8 +2,11 @@ package com.haidainversiones.haidainversionesllantas.controller;
 
 import com.haidainversiones.haidainversionesllantas.entity.CarritoItem;
 import com.haidainversiones.haidainversionesllantas.service.CarritoService;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -13,6 +16,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/carrito")
+@Validated
 public class CarritoController {
 
     @Autowired
@@ -22,8 +26,8 @@ public class CarritoController {
     @PostMapping("/agregar")
     public ResponseEntity<CarritoItem> agregarAlCarrito(
             @RequestParam String sessionId,
-            @RequestParam Long productoId,
-            @RequestParam Integer cantidad) {
+            @RequestParam @NotNull(message = "El ID del producto es obligatorio") Long productoId,
+            @RequestParam @NotNull(message = "La cantidad es obligatoria") @Min(value = 1, message = "La cantidad debe ser al menos 1") Integer cantidad) {
         CarritoItem item = carritoService.agregarAlCarrito(sessionId, productoId, cantidad);
         return ResponseEntity.ok(item);
     }
@@ -32,8 +36,8 @@ public class CarritoController {
     @PostMapping("/agregar/usuario/{usuarioId}")
     public ResponseEntity<CarritoItem> agregarAlCarritoUsuario(
             @PathVariable Long usuarioId,
-            @RequestParam Long productoId,
-            @RequestParam Integer cantidad) {
+            @RequestParam @NotNull(message = "El ID del producto es obligatorio") Long productoId,
+            @RequestParam @NotNull(message = "La cantidad es obligatoria") @Min(value = 1, message = "La cantidad debe ser al menos 1") Integer cantidad) {
         CarritoItem item = carritoService.agregarAlCarritoUsuario(usuarioId, productoId, cantidad);
         return ResponseEntity.ok(item);
     }
@@ -70,7 +74,7 @@ public class CarritoController {
     @PutMapping("/item/{itemId}")
     public ResponseEntity<CarritoItem> actualizarCantidad(
             @PathVariable Long itemId,
-            @RequestParam Integer cantidad) {
+            @RequestParam @NotNull(message = "La cantidad es obligatoria") @Min(value = 1, message = "La cantidad debe ser al menos 1") Integer cantidad) {
         CarritoItem item = carritoService.actualizarCantidad(itemId, cantidad);
         return ResponseEntity.ok(item);
     }

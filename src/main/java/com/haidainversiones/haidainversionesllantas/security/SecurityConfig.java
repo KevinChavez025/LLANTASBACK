@@ -43,11 +43,17 @@ public class SecurityConfig {
                         .requestMatchers("/api/productos/**").permitAll()
                         .requestMatchers("/api/carrito/**").permitAll()
                         .requestMatchers("/api/pedidos").permitAll()
+
+                        // ✅ Swagger UI
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
+
                         // Endpoints protegidos
                         .requestMatchers("/api/pedidos/usuario/**").authenticated()
                         .requestMatchers("/api/usuarios/**").authenticated()
+
                         // Admin endpoints
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
                         // Permitir todo lo demás temporalmente
                         .anyRequest().permitAll()
                 );
