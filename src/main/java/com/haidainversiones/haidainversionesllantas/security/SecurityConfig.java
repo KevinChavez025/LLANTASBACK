@@ -68,8 +68,8 @@ public class SecurityConfig {
 
                         // ===== AUTENTICACIÓN (pública) =====
                         .requestMatchers("/api/auth/login",
-                                         "/api/auth/register",
-                                         "/api/auth/refresh").permitAll()
+                                "/api/auth/register",
+                                "/api/auth/refresh").permitAll()
                         .requestMatchers("/api/auth/logout/**").authenticated()
 
                         // ===== PRODUCTOS: lectura pública, escritura ADMIN =====
@@ -81,9 +81,14 @@ public class SecurityConfig {
                         // ===== CARRITO: público (invitados y usuarios) =====
                         .requestMatchers("/api/carrito/**").permitAll()
 
-                        // ===== PEDIDOS =====
+                        // ===== PEDIDOS (orden: específico → genérico) =====
                         .requestMatchers(HttpMethod.POST, "/api/pedidos").permitAll()
-                        .requestMatchers("/api/pedidos/usuario/**").authenticated()
+
+                        // ✅ Rutas específicas PRIMERO
+                        .requestMatchers(HttpMethod.GET, "/api/pedidos/mis-pedidos/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/pedidos/usuario/**").authenticated()
+
+                        // ✅ Rutas genéricas DESPUÉS
                         .requestMatchers(HttpMethod.GET, "/api/pedidos").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/pedidos/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/pedidos/**").hasRole("ADMIN")
@@ -98,12 +103,11 @@ public class SecurityConfig {
 
                         // ===== SWAGGER/DOCS =====
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**",
-                                         "/swagger-ui.html").permitAll()
+                                "/swagger-ui.html").permitAll()
 
                         .anyRequest().authenticated()
                 );
 
-        // Rate limit ANTES que JWT (evita procesar tokens en requests abusivos)
         http.addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

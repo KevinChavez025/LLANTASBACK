@@ -8,6 +8,7 @@ import com.haidainversiones.haidainversionesllantas.enums.EstadoPedido;
 import com.haidainversiones.haidainversionesllantas.enums.MetodoPago;
 import com.haidainversiones.haidainversionesllantas.exception.BadRequestException;
 import com.haidainversiones.haidainversionesllantas.exception.ResourceNotFoundException;
+import com.haidainversiones.haidainversionesllantas.exception.UnauthorizedException;
 import com.haidainversiones.haidainversionesllantas.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -45,16 +46,9 @@ public class PedidoService {
     @Value("${negocio.costo-envio:15.00}")
     private BigDecimal costoEnvio;
 
-    /**
-     * Crea un pedido de forma segura contra:
-     *  1. Doble submit (idempotency key)
-     *  2. Overselling (lock pesimista por producto)
-     *  3. Concurrencia (toda la operación en una sola transacción)
-     */
     @Transactional
     public PedidoResponse crearPedido(CrearPedidoRequest request) {
 
-        // ── 1. PROTECCIÓN DOBLE SUBMIT ──────────────────────────────────────
         if (request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank()) {
             Optional<IdempotencyKey> keyExistente = idempotencyKeyRepository
                     .findByKeyValue(request.getIdempotencyKey());
@@ -63,7 +57,6 @@ public class PedidoService {
             }
         }
 
-        // ── 2. OBTENER CARRITO ───────────────────────────────────────────────
         List<CarritoItem> carritoItems;
         if (request.getUsuarioId() != null) {
             carritoItems = carritoItemRepository.findByUsuarioId(request.getUsuarioId());
@@ -75,7 +68,6 @@ public class PedidoService {
             throw new BadRequestException("El carrito está vacío");
         }
 
-        // ── 3. LOCK PESIMISTA + VALIDACIÓN DE STOCK ──────────────────────────
         for (CarritoItem item : carritoItems) {
             Producto producto = productoRepository
                     .findByIdForUpdate(item.getProducto().getId())
@@ -89,13 +81,12 @@ public class PedidoService {
             if (producto.getStock() < item.getCantidad()) {
                 throw new BadRequestException(
                         "Stock insuficiente para '" + producto.getNombre() +
-                        "'. Disponible: " + producto.getStock() +
-                        ", solicitado: " + item.getCantidad());
+                                "'. Disponible: " + producto.getStock() +
+                                ", solicitado: " + item.getCantidad());
             }
             item.setProducto(producto);
         }
 
-        // ── 4. CREAR PEDIDO ──────────────────────────────────────────────────
         Pedido pedido = new Pedido();
         pedido.setNumeroPedido("PED-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
         pedido.setEstado(EstadoPedido.PENDIENTE);
@@ -118,7 +109,7 @@ public class PedidoService {
             } catch (IllegalArgumentException e) {
                 throw new BadRequestException(
                         "Método de pago inválido: '" + request.getMetodoPago() +
-                        "'. Valores válidos: EFECTIVO, TARJETA_CREDITO, TARJETA_DEBITO, TRANSFERENCIA, YAPE, PLIN");
+                                "'. Valores válidos: EFECTIVO, TARJETA_CREDITO, TARJETA_DEBITO, TRANSFERENCIA, YAPE, PLIN");
             }
         }
 
@@ -130,7 +121,6 @@ public class PedidoService {
         pedido.setTelefonoContacto(request.getTelefonoContacto());
         pedido.setNotas(request.getNotasAdicionales());
 
-        // ── 5. CALCULAR TOTALES ──────────────────────────────────────────────
         BigDecimal subtotal = carritoItems.stream()
                 .map(CarritoItem::getSubtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -146,7 +136,6 @@ public class PedidoService {
 
         Pedido pedidoGuardado = pedidoRepository.save(pedido);
 
-        // ── 6. CREAR DETALLES Y DESCONTAR STOCK ─────────────────────────────
         for (CarritoItem item : carritoItems) {
             DetallePedido detalle = new DetallePedido();
             detalle.setPedido(pedidoGuardado);
@@ -164,7 +153,6 @@ public class PedidoService {
             productoRepository.save(producto);
         }
 
-        // ── 7. GUARDAR IDEMPOTENCY KEY ───────────────────────────────────────
         if (request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank()) {
             try {
                 IdempotencyKey ik = new IdempotencyKey();
@@ -179,7 +167,6 @@ public class PedidoService {
             }
         }
 
-        // ── 8. VACIAR CARRITO ────────────────────────────────────────────────
         if (request.getUsuarioId() != null) {
             carritoItemRepository.deleteByUsuarioId(request.getUsuarioId());
         } else {
@@ -189,15 +176,20 @@ public class PedidoService {
         return mapearAPedidoResponse(pedidoGuardado);
     }
 
+    // ✅ CORREGIDO: agregado @Transactional(readOnly = true)
+    @Transactional(readOnly = true)
     public Page<PedidoResponse> obtenerTodosPaginado(Pageable pageable) {
         return pedidoRepository.findAll(pageable).map(this::mapearAPedidoResponse);
     }
 
+    // ✅ CORREGIDO: agregado @Transactional(readOnly = true)
+    @Transactional(readOnly = true)
     public PedidoResponse obtenerPorId(Long id) {
         Pedido pedido = pedidoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Pedido", "id", id));
         return mapearAPedidoResponse(pedido);
     }
+
     @Transactional(readOnly = true)
     public List<PedidoResponse> obtenerPorUsuario(Long usuarioId) {
         return pedidoRepository.findByUsuarioIdOrderByFechaCreacionDesc(usuarioId).stream()
@@ -205,9 +197,6 @@ public class PedidoService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Actualiza el estado del pedido y registra el cambio en el historial.
-     */
     @Transactional
     public PedidoResponse actualizarEstado(Long pedidoId, String nuevoEstadoStr) {
         Pedido pedido = pedidoRepository.findById(pedidoId)
@@ -219,7 +208,7 @@ public class PedidoService {
         } catch (IllegalArgumentException e) {
             throw new BadRequestException(
                     "Estado inválido: '" + nuevoEstadoStr +
-                    "'. Valores válidos: PENDIENTE, CONFIRMADO, EN_PREPARACION, ENVIADO, ENTREGADO, CANCELADO");
+                            "'. Valores válidos: PENDIENTE, CONFIRMADO, EN_PREPARACION, ENVIADO, ENTREGADO, CANCELADO");
         }
 
         EstadoPedido estadoAnterior = pedido.getEstado();
@@ -231,7 +220,6 @@ public class PedidoService {
         pedido.setEstado(nuevoEstado);
         Pedido pedidoGuardado = pedidoRepository.save(pedido);
 
-        // ── AUDITORÍA: registrar el cambio de estado ─────────────────────────
         PedidoHistorial historial = new PedidoHistorial();
         historial.setPedido(pedidoGuardado);
         historial.setEstadoAnterior(estadoAnterior);
@@ -242,14 +230,12 @@ public class PedidoService {
         return mapearAPedidoResponse(pedidoGuardado);
     }
 
+    // ✅ CORREGIDO: agregado @Transactional(readOnly = true)
+    @Transactional(readOnly = true)
     public List<PedidoHistorial> obtenerHistorial(Long pedidoId) {
         return pedidoHistorialRepository.findByPedidoIdOrderByFechaCambioAsc(pedidoId);
     }
 
-    /**
-     * Devuelve el stock de todos los ítems del pedido.
-     * DEBE llamarse siempre dentro de una transacción activa.
-     */
     @Transactional(propagation = Propagation.MANDATORY)
     protected void devolverStockPedido(Pedido pedido) {
         for (DetallePedido detalle : pedido.getDetalles()) {
@@ -267,6 +253,30 @@ public class PedidoService {
     private String obtenerUsuarioActual() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         return (auth != null && auth.isAuthenticated()) ? auth.getName() : "sistema";
+    }
+
+    // ✅ CORREGIDO: agregado @Transactional(readOnly = true)
+    @Transactional(readOnly = true)
+    public void verificarOwnership(Long usuarioId, String emailAutenticado) {
+        usuarioRepository.findById(usuarioId).ifPresent(usuario -> {
+            if (!usuario.getEmail().equals(emailAutenticado)) {
+                throw new UnauthorizedException(
+                        "No tienes permisos para ver los pedidos de otro usuario.");
+            }
+        });
+    }
+
+    // ✅ CORREGIDO: agregado @Transactional(readOnly = true)
+    @Transactional(readOnly = true)
+    public void verificarOwnershipPedido(Long pedidoId, String emailAutenticado) {
+        Pedido pedido = pedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Pedido", "id", pedidoId));
+
+        if (pedido.getUsuario() == null ||
+                !pedido.getUsuario().getEmail().equals(emailAutenticado)) {
+            throw new UnauthorizedException(
+                    "No tienes permisos para ver este pedido.");
+        }
     }
 
     private PedidoResponse mapearAPedidoResponse(Pedido pedido) {
@@ -309,17 +319,5 @@ public class PedidoService {
                 .fechaEntregaEstimada(pedido.getFechaEntregaEstimada())
                 .build();
     }
-    /**
-     * Verifica que el usuarioId pertenece al email autenticado.
-     * Lanza UnauthorizedException si intenta acceder a pedidos de otro usuario.
-     */
-    public void verificarOwnership(Long usuarioId, String emailAutenticado) {
-        usuarioRepository.findById(usuarioId).ifPresent(usuario -> {
-            if (!usuario.getEmail().equals(emailAutenticado)) {
-                throw new com.haidainversiones.haidainversionesllantas.exception.UnauthorizedException(
-                    "No tienes permisos para ver los pedidos de otro usuario.");
-            }
-        });
-    }
-
 }
+
