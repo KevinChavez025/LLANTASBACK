@@ -198,7 +198,7 @@ public class PedidoService {
                 .orElseThrow(() -> new ResourceNotFoundException("Pedido", "id", id));
         return mapearAPedidoResponse(pedido);
     }
-
+    @Transactional(readOnly = true)
     public List<PedidoResponse> obtenerPorUsuario(Long usuarioId) {
         return pedidoRepository.findByUsuarioIdOrderByFechaCreacionDesc(usuarioId).stream()
                 .map(this::mapearAPedidoResponse)
