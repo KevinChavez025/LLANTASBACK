@@ -1,0 +1,44 @@
+# ===== MAVEN =====
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# ===== INTELLIJ IDEA =====
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# ===== ECLIPSE =====
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+# ===== VS CODE =====
+.vscode/
+
+# ===== SPRING BOOT =====
+spring-shell.log
+
+# ===== VARIABLES DE ENTORNO (NUNCA subir al repo) =====
+.env
+*.env
+.env.local
+.env.production
+
+# ===== LOGS =====
+*.log
+logs/
+
+# ===== SISTEMA OPERATIVO =====
+.DS_Store
+Thumbs.db
+
+# ===== ARCHIVOS TEMPORALES =====
+*.tmp
+*.temp
